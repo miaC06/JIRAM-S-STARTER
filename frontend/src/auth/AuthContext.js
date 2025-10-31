@@ -1,3 +1,7 @@
+// ============================================================
+// 🧠 AuthContext — Central Authentication State + Logic
+// ============================================================
+
 import React, {
   createContext,
   useState,
@@ -5,105 +9,103 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import api from "../api"; // axios instance
+import API from "../config/api"; // ✅ Axios instance
 
-// Create context
+// ------------------------------------------------------------
+// Context Creation
+// ------------------------------------------------------------
 const AuthContext = createContext();
 
-// ---------------------------------------------------------
-// 🧠 AuthProvider component
-// ---------------------------------------------------------
+// ============================================================
+// 🧩 AuthProvider Component
+// ============================================================
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Restore session on refresh
+  // ---------------------------------------------------------
+  // 🧩 Restore session from localStorage on refresh
+  // ---------------------------------------------------------
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const storedToken = localStorage.getItem("token");
+    const storedUser = localStorage.getItem("userProfile");
+    const storedToken = localStorage.getItem("access_token");
 
     if (storedUser && storedToken) {
       setUser(JSON.parse(storedUser));
       setToken(storedToken);
-
-      // Attach token to axios
-      api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
+      API.setAuthToken(storedToken);
     }
 
     setLoading(false);
   }, []);
 
   // ---------------------------------------------------------
-  // 🔑 Login function
+  // 🔑 Login (POST /auth/token)
   // ---------------------------------------------------------
   const login = useCallback(async (email, password) => {
     try {
-      const params = new URLSearchParams();
-      params.append("username", email); // FastAPI expects "username"
-      params.append("password", password);
+      // ✅ FastAPI expects `application/x-www-form-urlencoded`
+      const formData = new URLSearchParams();
+      formData.append("username", email); // ⬅️ Must be 'username'
+      formData.append("password", password);
 
-      const res = await api.post("/auth/token", params, {
+      const response = await API.api.post("/auth/token", formData, {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
 
-      const data = res.data;
-      console.log("🔍 Backend login response:", data);
+      const data = response.data;
+      console.log("✅ Login success:", data);
 
-      // Validate
       if (!data.access_token) {
-        throw new Error("No access token returned from server");
+        throw new Error("No access token returned from backend");
       }
 
-      // Extract user role
-      const role =
-        data.user?.role ||
-        data.role ||
-        (Array.isArray(data.roles) ? data.roles[0] : "UNKNOWN");
-
+      // ✅ Build user object
       const loggedInUser = {
-        email: data.user?.email || data.email || email,
-        role,
-        roles: [role],
+        id: data.user?.id || null,
+        email: data.user?.email || email,
+        role: data.user?.role || data.role || "USER",
       };
 
-      // Save to state + localStorage
+      // ✅ Save session
       setUser(loggedInUser);
       setToken(data.access_token);
 
-      localStorage.setItem("user", JSON.stringify(loggedInUser));
-      localStorage.setItem("token", data.access_token);
+      localStorage.setItem("userProfile", JSON.stringify(loggedInUser));
+      localStorage.setItem("access_token", data.access_token);
 
-      // Attach token globally
-      api.defaults.headers.common["Authorization"] = `Bearer ${data.access_token}`;
+      // ✅ Attach token for future requests
+      API.setAuthToken(data.access_token);
 
       return loggedInUser;
     } catch (err) {
       console.error("❌ Login failed:", err.response?.data || err.message);
-      throw new Error(
-        err.response?.data?.detail || "Invalid credentials or server error"
-      );
+      const message =
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
+        "Invalid credentials or server error";
+      throw new Error(message);
     }
   }, []);
 
   // ---------------------------------------------------------
-  // 🚪 Logout function
+  // 🚪 Logout
   // ---------------------------------------------------------
   const logout = useCallback(() => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    delete api.defaults.headers.common["Authorization"];
+    localStorage.removeItem("userProfile");
+    localStorage.removeItem("access_token");
+    API.setAuthToken(null);
   }, []);
 
   // ---------------------------------------------------------
-  // 🕒 Auto logout when token expires (optional)
+  // ⏰ Auto logout when token expires
   // ---------------------------------------------------------
   useEffect(() => {
     if (!token) return;
 
-    // Decode JWT expiry if needed
     try {
       const [, payload] = token.split(".");
       const { exp } = JSON.parse(atob(payload));
@@ -111,24 +113,31 @@ export function AuthProvider({ children }) {
 
       if (expiresIn > 0) {
         const timer = setTimeout(() => {
-          alert("Session expired. Please log in again.");
+          alert("⚠️ Session expired. Please log in again.");
           logout();
         }, expiresIn);
-
         return () => clearTimeout(timer);
       } else {
         logout();
       }
     } catch (err) {
-      console.warn("⚠️ Could not decode token expiry:", err);
+      console.warn("⚠️ Could not decode JWT token expiry:", err);
     }
   }, [token, logout]);
 
   // ---------------------------------------------------------
-  // ⏳ Loading state
+  // 🌀 Loading State
   // ---------------------------------------------------------
-  if (loading) return <div className="text-center p-6">Loading...</div>;
+  if (loading)
+    return (
+      <div className="d-flex justify-content-center align-items-center vh-100">
+        <p className="text-muted fs-5">Loading...</p>
+      </div>
+    );
 
+  // ---------------------------------------------------------
+  // 🧠 Provide context to children
+  // ---------------------------------------------------------
   return (
     <AuthContext.Provider value={{ user, token, login, logout }}>
       {children}
@@ -136,5 +145,7 @@ export function AuthProvider({ children }) {
   );
 }
 
-// Hook for consuming context
-export const useAuth = () => useContext(AuthContext);
+// ------------------------------------------------------------
+// Custom Hook for consuming AuthContext
+// ------------------------------------------------------------
+export const useAuth = () => useContext(AuthContext); 

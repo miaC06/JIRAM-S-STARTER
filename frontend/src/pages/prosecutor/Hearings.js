@@ -1,120 +1,425 @@
-// src/pages/prosecutor/Hearings.js
-import React, { useState } from "react";
+// src/pages/registrar/Hearings.js
+// ============================================================
+// 📅 Hearings Management Page
+// Registrar schedules, edits, and cancels hearings.
+// Endpoints used: /hearings/, /hearings/{hearing_id}
+// ============================================================
+
+import React, { useEffect, useState } from "react";
+import {
+  Container,
+  Row,
+  Col,
+  Table,
+  Button,
+  Spinner,
+  Alert,
+  Badge,
+  Modal,
+  Form,
+  Card,
+} from "react-bootstrap";
+import API from "../../config/api"; // ✅ use centralized API instance
+import { useAuth } from "../../auth/AuthContext"; // ✅ Auth context for registrar info
 
 export default function Hearings() {
-  const [search, setSearch] = useState("");
-  const [hearings, setHearings] = useState([
-    {
-      id: 1,
-      caseTitle: "State vs. Doe",
-      date: "2025-09-28",
-      courtroom: "Courtroom 3",
-      status: "Scheduled",
-      judge: "Hon. Justice Amina",
-    },
-    {
-      id: 2,
-      caseTitle: "State vs. Smith",
-      date: "2025-10-10",
-      courtroom: "Courtroom 1",
-      status: "Scheduled",
-      judge: "Hon. Justice Kamau",
-    },
-    {
-      id: 3,
-      caseTitle: "State vs. Patel",
-      date: "2025-08-20",
-      courtroom: "Courtroom 2",
-      status: "Completed",
-      judge: "Hon. Justice Mwangi",
-    },
-  ]);
+  // ------------------------------
+  // CONTEXT & STATE
+  // ------------------------------
+  const { user } = useAuth();
+  const [hearings, setHearings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [selectedHearing, setSelectedHearing] = useState(null);
 
-  const filteredHearings = hearings.filter(
-    (h) =>
-      h.caseTitle.toLowerCase().includes(search.toLowerCase()) ||
-      h.status.toLowerCase().includes(search.toLowerCase())
-  );
+  const [formData, setFormData] = useState({
+    case_id: "",
+    scheduled_date: "",
+    location: "",
+    registrar_email: "",
+    judge_id: "",
+    notes: "",
+  });
 
-  return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      {/* Page Header */}
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">📅 Hearings</h2>
-      <p className="text-gray-600 mb-6">
-        Track all scheduled, completed, or pending hearings for your cases.
-      </p>
+  // ------------------------------
+  // FETCH HEARINGS
+  // ------------------------------
+  useEffect(() => {
+    const fetchHearings = async () => {
+      try {
+        setLoading(true);
+        const res = await API.api.get("/hearings/");
+        setHearings(res.data || []);
+      } catch (err) {
+        console.error("❌ Failed to fetch hearings:", err);
+        setError(
+          err.response?.data?.detail ||
+            "Unable to fetch hearings from the server."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      {/* Search Bar */}
-      <div className="mb-6">
-        <input
-          type="text"
-          placeholder="🔎 Search by case or status..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full md:w-1/3 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+    fetchHearings();
+  }, []);
+
+  // ------------------------------
+  // AUTO-FILL REGISTRAR EMAIL
+  // ------------------------------
+  useEffect(() => {
+    if (user?.email) {
+      setFormData((prev) => ({ ...prev, registrar_email: user.email }));
+    }
+  }, [user]);
+
+  // ------------------------------
+  // FORM HANDLERS
+  // ------------------------------
+  const handleChange = (e) =>
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const openModal = (hearing = null) => {
+    if (hearing) {
+      setIsEditing(true);
+      setSelectedHearing(hearing);
+      setFormData({
+        case_id: hearing.case_id || "",
+        scheduled_date: hearing.scheduled_date
+          ? new Date(hearing.scheduled_date).toISOString().slice(0, 16)
+          : "",
+        location: hearing.location || "",
+        registrar_email: hearing.registrar_name || user?.email || "",
+        judge_id: hearing.judge_id || "",
+        notes: hearing.notes || "",
+      });
+    } else {
+      setIsEditing(false);
+      setSelectedHearing(null);
+      setFormData({
+        case_id: "",
+        scheduled_date: "",
+        location: "",
+        registrar_email: user?.email || "",
+        judge_id: "",
+        notes: "",
+      });
+    }
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setIsEditing(false);
+    setSelectedHearing(null);
+  };
+
+  // ------------------------------
+  // ADD HEARING
+  // ------------------------------
+  const handleAddHearing = async () => {
+    if (!formData.case_id || !formData.scheduled_date || !formData.location) {
+      alert("⚠️ Please fill all required fields.");
+      return;
+    }
+
+    const payload = {
+      case_id: Number(formData.case_id),
+      scheduled_date: new Date(formData.scheduled_date).toISOString(),
+      location: formData.location.trim(),
+      registrar_email: formData.registrar_email.trim(),
+      judge_id: formData.judge_id ? Number(formData.judge_id) : null,
+      notes: formData.notes?.trim(),
+    };
+
+    try {
+      setSaving(true);
+      const res = await API.api.post("/hearings/", payload);
+      setHearings((prev) => [...prev, res.data]);
+      alert("✅ Hearing scheduled successfully!");
+      closeModal();
+    } catch (err) {
+      console.error("❌ Failed to add hearing:", err.response?.data || err);
+      alert("Failed to schedule hearing.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ------------------------------
+  // UPDATE / RESCHEDULE HEARING
+  // ------------------------------
+  const handleUpdateHearing = async () => {
+    if (!selectedHearing) return;
+
+    const payload = {
+      scheduled_date: new Date(formData.scheduled_date).toISOString(),
+      location: formData.location.trim(),
+      notes: formData.notes?.trim(),
+      status: "RESCHEDULED",
+    };
+
+    try {
+      setSaving(true);
+      const res = await API.api.put(`/hearings/${selectedHearing.id}`, payload);
+      setHearings((prev) =>
+        prev.map((h) => (h.id === selectedHearing.id ? res.data : h))
+      );
+      alert("✅ Hearing updated successfully!");
+      closeModal();
+    } catch (err) {
+      console.error("❌ Update failed:", err.response?.data || err);
+      alert("Error updating hearing.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ------------------------------
+  // CANCEL HEARING
+  // ------------------------------
+  const handleCancel = async (id) => {
+    if (!window.confirm("Cancel this hearing?")) return;
+    try {
+      await API.api.put(`/hearings/${id}`, { status: "CANCELLED" });
+      setHearings((prev) =>
+        prev.map((h) => (h.id === id ? { ...h, status: "CANCELLED" } : h))
+      );
+      alert("🗑️ Hearing cancelled successfully.");
+    } catch (err) {
+      console.error("❌ Cancel failed:", err);
+    }
+  };
+
+  // ------------------------------
+  // DELETE HEARING
+  // ------------------------------
+  const handleDelete = async (id) => {
+    if (!window.confirm("Permanently delete this hearing?")) return;
+    try {
+      await API.api.delete(`/hearings/${id}`);
+      setHearings((prev) => prev.filter((h) => h.id !== id));
+      alert("🗑️ Hearing deleted successfully.");
+    } catch (err) {
+      console.error("❌ Delete failed:", err);
+    }
+  };
+
+  // ------------------------------
+  // UI STATES
+  // ------------------------------
+  if (loading)
+    return (
+      <div className="text-center mt-5">
+        <Spinner animation="border" variant="primary" />
+        <p className="text-muted mt-2">Loading hearings...</p>
       </div>
+    );
 
-      {/* Hearings Table */}
-      <div className="bg-white shadow-lg rounded-xl overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead className="bg-gray-100 text-gray-700">
+  if (error) return <Alert variant="danger">{error}</Alert>;
+
+  // ------------------------------
+  // MAIN UI
+  // ------------------------------
+  return (
+    <Container className="mt-4">
+      <Card className="shadow-sm mb-4 border-0">
+        <Card.Body>
+          <Row className="align-items-center">
+            <Col>
+              <h2 className="fw-bold text-primary mb-0">📅 Hearing Management</h2>
+              <p className="text-muted mb-0">
+                Manage and track all hearings — schedule, reschedule, or cancel.
+              </p>
+            </Col>
+            <Col className="text-end">
+              <Button variant="success" onClick={() => openModal()}>
+                ➕ Schedule Hearing
+              </Button>
+            </Col>
+          </Row>
+        </Card.Body>
+      </Card>
+
+      {hearings.length === 0 ? (
+        <Alert variant="light" className="text-center">
+          No hearings found.
+        </Alert>
+      ) : (
+        <Table bordered hover responsive className="shadow-sm align-middle">
+          <thead className="bg-light">
             <tr>
-              <th className="p-4">Case</th>
-              <th className="p-4">Date</th>
-              <th className="p-4">Courtroom</th>
-              <th className="p-4">Judge</th>
-              <th className="p-4">Status</th>
-              <th className="p-4">Actions</th>
+              <th>#</th>
+              <th>Case</th>
+              <th>Scheduled Date</th>
+              <th>Location</th>
+              <th>Status</th>
+              <th>Registrar</th>
+              <th>Judge</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredHearings.length > 0 ? (
-              filteredHearings.map((h) => (
-                <tr key={h.id} className="border-t hover:bg-gray-50 transition">
-                  <td className="p-4 font-medium">{h.caseTitle}</td>
-                  <td className="p-4">{h.date}</td>
-                  <td className="p-4">{h.courtroom}</td>
-                  <td className="p-4">{h.judge}</td>
-                  <td className="p-4">
-                    <span
-                      className={`px-3 py-1 text-sm rounded-full ${
-                        h.status === "Scheduled"
-                          ? "bg-blue-100 text-blue-700"
-                          : h.status === "Completed"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}
+            {hearings.map((h, i) => (
+              <tr key={h.id}>
+                <td>{i + 1}</td>
+                <td>{h.case_title || `Case #${h.case_id}`}</td>
+                <td>
+                  {h.scheduled_date
+                    ? new Date(h.scheduled_date).toLocaleString()
+                    : "—"}
+                </td>
+                <td>{h.location || "—"}</td>
+                <td>
+                  <Badge
+                    bg={
+                      h.status?.toUpperCase() === "SCHEDULED"
+                        ? "success"
+                        : h.status?.toUpperCase() === "RESCHEDULED"
+                        ? "info"
+                        : h.status?.toUpperCase() === "CANCELLED"
+                        ? "danger"
+                        : "secondary"
+                    }
+                  >
+                    {h.status || "UNKNOWN"}
+                  </Badge>
+                </td>
+                <td>{h.registrar_name || h.registrar_email || "—"}</td>
+                <td>{h.judge_name || "—"}</td>
+                <td>
+                  <div className="d-flex gap-2 flex-wrap">
+                    <Button
+                      variant="outline-primary"
+                      size="sm"
+                      onClick={() => openModal(h)}
                     >
-                      {h.status}
-                    </span>
-                  </td>
-                  <td className="p-4 flex gap-3">
-                    <button className="text-blue-600 hover:underline">
-                      View Case
-                    </button>
-                    <button className="text-green-600 hover:underline">
-                      Add Notes
-                    </button>
-                    <button className="text-orange-600 hover:underline">
-                      Request Reschedule
-                    </button>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan="6"
-                  className="p-6 text-center text-gray-500 italic"
-                >
-                  No hearings found.
+                      ✏️ Edit
+                    </Button>
+                    <Button
+                      variant="outline-warning"
+                      size="sm"
+                      onClick={() => handleCancel(h.id)}
+                    >
+                      ⚠️ Cancel
+                    </Button>
+                    <Button
+                      variant="outline-danger"
+                      size="sm"
+                      onClick={() => handleDelete(h.id)}
+                    >
+                      🗑️ Delete
+                    </Button>
+                  </div>
                 </td>
               </tr>
-            )}
+            ))}
           </tbody>
-        </table>
-      </div>
-    </div>
+        </Table>
+      )}
+
+      {/* 🕓 Modal for Add / Edit */}
+      <Modal show={showModal} onHide={closeModal} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {isEditing ? "✏️ Update Hearing" : "➕ Schedule New Hearing"}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            {!isEditing && (
+              <Form.Group className="mb-3">
+                <Form.Label>Case ID</Form.Label>
+                <Form.Control
+                  type="number"
+                  name="case_id"
+                  value={formData.case_id}
+                  onChange={handleChange}
+                  placeholder="Enter case ID"
+                  required
+                />
+              </Form.Group>
+            )}
+
+            <Form.Group className="mb-3">
+              <Form.Label>Date & Time</Form.Label>
+              <Form.Control
+                type="datetime-local"
+                name="scheduled_date"
+                value={formData.scheduled_date}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Location</Form.Label>
+              <Form.Control
+                type="text"
+                name="location"
+                placeholder="Enter courtroom or venue"
+                value={formData.location}
+                onChange={handleChange}
+                required
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Registrar Email</Form.Label>
+              <Form.Control
+                type="email"
+                name="registrar_email"
+                value={formData.registrar_email}
+                disabled
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Judge ID (optional)</Form.Label>
+              <Form.Control
+                type="number"
+                name="judge_id"
+                placeholder="Enter judge ID"
+                value={formData.judge_id}
+                onChange={handleChange}
+              />
+            </Form.Group>
+
+            {isEditing && (
+              <Form.Group>
+                <Form.Label>Notes</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  name="notes"
+                  placeholder="Enter notes or comments"
+                  value={formData.notes}
+                  onChange={handleChange}
+                />
+              </Form.Group>
+            )}
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={closeModal}>
+            Close
+          </Button>
+          <Button
+            variant="primary"
+            onClick={isEditing ? handleUpdateHearing : handleAddHearing}
+            disabled={saving}
+          >
+            {saving
+              ? "Saving..."
+              : isEditing
+              ? "Update Hearing"
+              : "Add Hearing"}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </Container>
   );
 }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Container,
   Row,
@@ -8,11 +8,26 @@ import {
   Badge,
   Table,
   ProgressBar,
+  Spinner,
+  Alert,
 } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
+import api from "../../api";
+import { useAuth } from "../../auth/AuthContext"; // Optional, used for judge filtering
 
 export default function JudgeDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const [stats, setStats] = useState({
+    cases: 0,
+    pendingRulings: 0,
+    hearings: 0,
+    evidences: 0,
+  });
+  const [recentCases, setRecentCases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const Animated = ({ children, delay = 0 }) => (
     <div
@@ -23,6 +38,85 @@ export default function JudgeDashboard() {
     </div>
   );
 
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        // 🔹 1. Fetch all cases
+        let allCases = [];
+        try {
+          const caseRes = await api.get("/cases/");
+          allCases = caseRes.data || [];
+        } catch (e) {
+          console.warn("⚠️ Cases fetch failed:", e.message);
+        }
+
+        // 🔹 2. Fetch all hearings
+        let allHearings = [];
+        try {
+          const hearingRes = await api.get("/hearings/");
+          allHearings = hearingRes.data || [];
+        } catch (e) {
+          console.warn("⚠️ Hearings fetch failed:", e.message);
+        }
+
+        // 🔹 3. Attempt to fetch all evidence (may 404)
+        let allEvidence = [];
+        try {
+          const evidenceRes = await api.get("/evidence/");
+          allEvidence = evidenceRes.data || [];
+        } catch (e) {
+          console.warn("⚠️ Evidence endpoint not found — skipping count");
+        }
+
+        // 🔹 Filter cases assigned to this judge (optional)
+        const judgeEmail = user?.email || "";
+        const myCases = allCases.filter(
+          (c) => c.assigned_to === judgeEmail || c.status === "Ongoing"
+        );
+
+        // 🔹 Calculate statistics
+        const pendingRulings = myCases.filter(
+          (c) =>
+            c.status?.toLowerCase() === "pending ruling" ||
+            c.status?.toLowerCase() === "review"
+        ).length;
+
+        setStats({
+          cases: myCases.length,
+          pendingRulings,
+          hearings: allHearings.length,
+          evidences: allEvidence.length,
+        });
+
+        // 🔹 Keep top 5 most recent cases
+        setRecentCases(myCases.slice(0, 5));
+      } catch (err) {
+        console.error("❌ Dashboard load failed:", err);
+        setError("Failed to load dashboard data. Check server or endpoints.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [user]);
+
+  // -------------------------------
+  // UI RENDER
+  // -------------------------------
+  if (loading)
+    return (
+      <div className="text-center mt-5">
+        <Spinner animation="border" />
+        <p className="text-muted mt-2">Loading judicial dashboard...</p>
+      </div>
+    );
+
+  if (error) return <Alert variant="danger">{error}</Alert>;
+
   return (
     <Container fluid className="py-4 bg-light min-vh-100">
       {/* Header */}
@@ -30,8 +124,7 @@ export default function JudgeDashboard() {
         <div className="text-center mb-5">
           <h2 className="fw-bold text-dark mb-1">⚖️ Judicial Control Panel</h2>
           <p className="text-muted">
-            Oversee case activities, hearings, evidence reviews, and rulings —
-            all at your command.
+            Oversee case activities, hearings, evidence reviews, and rulings — all at your command.
           </p>
           <Badge bg="dark" className="p-2 mt-2">
             Judge Access • Authorized
@@ -45,27 +138,27 @@ export default function JudgeDashboard() {
           {[
             {
               title: "Active Cases",
-              value: 18,
+              value: stats.cases,
               color: "primary",
-              progress: 70,
+              progress: stats.cases ? 70 : 10,
             },
             {
               title: "Pending Rulings",
-              value: 6,
+              value: stats.pendingRulings,
               color: "warning",
-              progress: 40,
+              progress: stats.pendingRulings ? 40 : 5,
             },
             {
               title: "Scheduled Hearings",
-              value: 12,
+              value: stats.hearings,
               color: "success",
-              progress: 80,
+              progress: stats.hearings ? 80 : 10,
             },
             {
               title: "Evidence Reviews",
-              value: 9,
+              value: stats.evidences,
               color: "info",
-              progress: 55,
+              progress: stats.evidences ? 55 : 10,
             },
           ].map((item, i) => (
             <Col key={i} md={3} sm={6}>
@@ -98,44 +191,42 @@ export default function JudgeDashboard() {
                 📁 Case Management
               </Card.Header>
               <Card.Body>
-                <Table hover responsive bordered size="sm" className="mb-3">
-                  <thead className="table-secondary">
-                    <tr>
-                      <th>#</th>
-                      <th>Case Title</th>
-                      <th>Status</th>
-                      <th>Next Hearing</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>1</td>
-                      <td>State vs Moyo</td>
-                      <td>
-                        <Badge bg="warning" text="dark">
-                          Pending
-                        </Badge>
-                      </td>
-                      <td>08 Oct 2025</td>
-                    </tr>
-                    <tr>
-                      <td>2</td>
-                      <td>People vs Banda</td>
-                      <td>
-                        <Badge bg="success">Active</Badge>
-                      </td>
-                      <td>11 Oct 2025</td>
-                    </tr>
-                    <tr>
-                      <td>3</td>
-                      <td>Republic vs Chirwa</td>
-                      <td>
-                        <Badge bg="danger">Review</Badge>
-                      </td>
-                      <td>13 Oct 2025</td>
-                    </tr>
-                  </tbody>
-                </Table>
+                {recentCases.length === 0 ? (
+                  <Alert variant="light">No cases assigned yet.</Alert>
+                ) : (
+                  <Table hover responsive bordered size="sm" className="mb-3">
+                    <thead className="table-secondary">
+                      <tr>
+                        <th>#</th>
+                        <th>Case Title</th>
+                        <th>Status</th>
+                        <th>Created By</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentCases.map((c, i) => (
+                        <tr key={c.id}>
+                          <td>{i + 1}</td>
+                          <td>{c.title}</td>
+                          <td>
+                            <Badge
+                              bg={
+                                c.status === "Pending"
+                                  ? "warning"
+                                  : c.status === "Active"
+                                  ? "success"
+                                  : "secondary"
+                              }
+                            >
+                              {c.status}
+                            </Badge>
+                          </td>
+                          <td>{c.created_by || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                )}
                 <div className="text-end">
                   <Button
                     variant="dark"

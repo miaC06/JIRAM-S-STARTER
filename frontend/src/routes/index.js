@@ -5,6 +5,7 @@ import { Routes, Route } from "react-router-dom";
 import Home from "../pages/shared/Home";
 import LoginPage from "../pages/auth/LoginPage";
 import SignupPage from "../pages/auth/SignupPage";
+import Register from "../pages/Register";
 
 // Dashboards
 import CivilianDashboard from "../pages/civilian/Dashboard";
@@ -15,12 +16,17 @@ import RegistrarDashboard from "../pages/registrar/Dashboard";
 // Auth & Layout
 import ProtectedRoute from "../auth/ProtectedRoute";
 import AppLayout from "../layouts/AppLayout";
+import CivilianLayout from "../layouts/CivilianLayout";
+import AdminLayout from "../layouts/AdminLayout";
 
 // Role-specific route modules (✅ must be default exports in their files)
 import CivilianRoutes from "./CivilianRoutes";
 import ProsecutorRoutes from "./ProsecutorRoutes";
 import JudgeRoutes from "./JudgeRoutes";
 import RegistrarRoutes from "./RegistrarRoutes";
+
+// 🧩 NEW: Import the API Debug page
+import ApiDebug from "../pages/ApiDebug";
 
 export default function AppRoutes() {
   return (
@@ -29,6 +35,7 @@ export default function AppRoutes() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/register" element={<Register />} />
 
       {/* Protected role dashboards (outer entry points) */}
       <Route
@@ -77,9 +84,9 @@ export default function AppRoutes() {
         path="/civilian/*"
         element={
           <ProtectedRoute>
-            <AppLayout>
+            <CivilianLayout>
               <CivilianRoutes />
-            </AppLayout>
+            </CivilianLayout>
           </ProtectedRoute>
         }
       />
@@ -87,9 +94,9 @@ export default function AppRoutes() {
         path="/prosecutor/*"
         element={
           <ProtectedRoute>
-            <AppLayout>
+            <AdminLayout>
               <ProsecutorRoutes />
-            </AppLayout>
+            </AdminLayout>
           </ProtectedRoute>
         }
       />
@@ -97,9 +104,9 @@ export default function AppRoutes() {
         path="/judge/*"
         element={
           <ProtectedRoute>
-            <AppLayout>
+            <AdminLayout>
               <JudgeRoutes />
-            </AppLayout>
+            </AdminLayout>
           </ProtectedRoute>
         }
       />
@@ -107,12 +114,15 @@ export default function AppRoutes() {
         path="/registrar/*"
         element={
           <ProtectedRoute>
-            <AppLayout>
+            <AdminLayout>
               <RegistrarRoutes />
-            </AppLayout>
+            </AdminLayout>
           </ProtectedRoute>
         }
       />
+
+      {/* 🧭 Public API Debug Route */}
+      <Route path="/api-debug" element={<ApiDebug />} />
     </Routes>
   );
 }

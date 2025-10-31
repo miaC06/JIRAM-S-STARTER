@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Routers
-from app.api.routers import auth, cases, documents, hearings, payments, users
+from app.api.routers import auth, cases, documents, hearings, payments, users, evidence
 
 # Database + Models
 from app.database import Base, engine, SessionLocal
@@ -36,18 +36,19 @@ def seed_users():
     """
     db = SessionLocal()
     defaults = [
-        {"email": "civilian@courts.com", "password": "ci1234", "role": "CIVILIAN"},
-        {"email": "prosecutor@courts.com", "password": "po1234", "role": "PROSECUTOR"},
-        {"email": "judge@courts.com", "password": "ju1234", "role": "JUDGE"},
-        {"email": "registrar@courts.com", "password": "re1234", "role": "REGISTRAR"},
+        {"username": "civilian-user", "email": "civil@court.com", "password": "ci1234", "role": "CIVILIAN"},
+        {"username": "prosecutor1", "email": "prose@court.com", "password": "po1234", "role": "PROSECUTOR"},
+        {"username": "judge-main", "email": "judge@court.com", "password": "ju1234", "role": "JUDGE"},
+        {"username": "registrar1", "email": "regis@court.com", "password": "re1234", "role": "REGISTRAR"},
     ]
 
     for user in defaults:
         exists = db.query(User).filter(User.email == user["email"]).first()
         if not exists:
-            logger.info(f"Seeding user: {user['email']} ({user['role']})")
+            logger.info(f"Seeding user: {user['username']} - {user['email']} ({user['role']})")
             db.add(
                 User(
+                    username=user["username"],
                     email=user["email"],
                     password_hash=hash_password(user["password"]),
                     role=user["role"],
@@ -120,6 +121,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------
 app.include_router(auth.router)
 app.include_router(cases.router)
+app.include_router(evidence.router)
 app.include_router(documents.router)
 app.include_router(hearings.router)
 app.include_router(payments.router)

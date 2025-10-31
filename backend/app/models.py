@@ -19,7 +19,8 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(120), unique=True, index=True, nullable=False)
+    username = Column(String(15), unique=True, index=True, nullable=False)
+    email = Column(String(20), unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     role = Column(String(50), nullable=False)  # CIVILIAN, PROSECUTOR, JUDGE, REGISTRAR
 
@@ -37,7 +38,12 @@ class User(Base):
     )
     evidences = relationship(
         "Evidence",
-        back_populates="uploaded_by",
+        back_populates="uploader",  # ✅ fixed to match Evidence.uploader
+        cascade="all, delete-orphan",
+    )
+    documents = relationship(  # ✅ added for Document relationship symmetry
+        "Document",
+        back_populates="uploader",
         cascade="all, delete-orphan",
     )
     hearings_as_judge = relationship(
@@ -61,6 +67,8 @@ class Case(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
+    category = Column(String(100), default="General")  # Category for case classification
+    notes = Column(Text, nullable=True)  # Optional notes from the civilian
     status = Column(String(100), default="Filed")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -79,13 +87,18 @@ class Case(Base):
         back_populates="assigned_cases",
         foreign_keys=[assigned_to_id],
     )
-    notes = relationship(
+    case_notes = relationship(
         "CaseNote",
         back_populates="case",
         cascade="all, delete-orphan",
     )
     evidences = relationship(
         "Evidence",
+        back_populates="case",
+        cascade="all, delete-orphan",
+    )
+    documents = relationship(  # ✅ added for Document model consistency
+        "Document",
         back_populates="case",
         cascade="all, delete-orphan",
     )
@@ -114,7 +127,7 @@ class CaseNote(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    case = relationship("Case", back_populates="notes")
+    case = relationship("Case", back_populates="case_notes")
     author = relationship("User")
 
 
@@ -126,15 +139,18 @@ class Evidence(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
+    uploader_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     filename = Column(String(255), nullable=False)
-    filetype = Column(String(50), nullable=False)
-    filepath = Column(String(500), nullable=True)
-    uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    filetype = Column(String(100), nullable=True)  # MIME type (e.g., image/png)
+    file_path = Column(String(500), nullable=True)  # Path to uploaded file
+    category = Column(String(100), default="General")
+    status = Column(String(50), default="PENDING")  # PENDING, APPROVED, REJECTED, UNDER_REVIEW
+    remarks = Column(Text, nullable=True)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     case = relationship("Case", back_populates="evidences")
-    uploaded_by = relationship("User", back_populates="evidences")
+    uploader = relationship("User", back_populates="evidences")
 
 
 # ===============================================================
@@ -177,6 +193,10 @@ class Payment(Base):
     case = relationship("Case", back_populates="payments")
     payer = relationship("User")
 
+
+# ===============================================================
+# 📄 DOCUMENT MODEL
+# ===============================================================
 class Document(Base):
     __tablename__ = "documents"
 
@@ -187,8 +207,8 @@ class Document(Base):
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
     file_type = Column(String(100), nullable=True)
     description = Column(Text, nullable=True)
-    upload_date = Column(DateTime(timezone=True), server_default=func.now())
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())  # ✅ renamed for consistency
 
     # Relationships
-    uploader = relationship("User")
-    case = relationship("Case")
+    uploader = relationship("User", back_populates="documents")
+    case = relationship("Case", back_populates="documents")

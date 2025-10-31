@@ -1,5 +1,10 @@
 // src/pages/registrar/Dashboard.js
-import React from "react";
+// ============================================================
+// 📋 Registrar Dashboard — Live Data Overview
+// Pulls system metrics from backend endpoints and links to core registrar modules.
+// ============================================================
+
+import React, { useEffect, useState } from "react";
 import {
   Container,
   Row,
@@ -9,13 +14,87 @@ import {
   ProgressBar,
   Badge,
   Table,
+  Spinner,
+  Alert,
 } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
+import API from "../../config/api";
+import { useAuth } from "../../auth/AuthContext";
 
 export default function RegistrarDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  // ✅ Subtle fade-in effect (Bootstrap + Animate.css if available)
+  // ------------------------------
+  // STATE
+  // ------------------------------
+  const [stats, setStats] = useState({
+    totalCases: 0,
+    pendingHearings: 0,
+    activeUsers: 0,
+    reports: 0,
+  });
+  const [recentCases, setRecentCases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // ------------------------------
+  // FETCH DASHBOARD DATA
+  // ------------------------------
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        // Parallel fetch for performance
+        const [casesRes, hearingsRes, usersRes] = await Promise.all([
+          API.api.get("/cases/"),
+          API.api.get("/hearings/"),
+          API.api.get("/users/"),
+        ]);
+
+        const allCases = casesRes.data || [];
+        const allHearings = hearingsRes.data || [];
+        const allUsers = usersRes.data || [];
+
+        // Compute metrics
+        const totalCases = allCases.length;
+        const pendingHearings = allHearings.filter(
+          (h) =>
+            h.status?.toUpperCase() === "PENDING" ||
+            h.status?.toUpperCase() === "SCHEDULED"
+        ).length;
+        const activeUsers = allUsers.length;
+
+        // Reports placeholder — if your API later supports /documents/
+        const reports = 0;
+
+        // Keep top 3-5 most recent cases
+        const recentCases = allCases
+          .sort(
+            (a, b) =>
+              new Date(b.date_filed || b.created_at) -
+              new Date(a.date_filed || a.created_at)
+          )
+          .slice(0, 5);
+
+        setStats({ totalCases, pendingHearings, activeUsers, reports });
+        setRecentCases(recentCases);
+      } catch (err) {
+        console.error("❌ Dashboard fetch failed:", err);
+        setError("Failed to fetch dashboard data from server.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  // ------------------------------
+  // SMALL ANIMATED WRAPPER
+  // ------------------------------
   const Animated = ({ children, delay = 0 }) => (
     <div
       className="animate__animated animate__fadeIn"
@@ -25,18 +104,39 @@ export default function RegistrarDashboard() {
     </div>
   );
 
+  // ------------------------------
+  // UI: LOADING & ERROR
+  // ------------------------------
+  if (loading)
+    return (
+      <div className="d-flex justify-content-center align-items-center vh-100 flex-column">
+        <Spinner animation="border" variant="primary" />
+        <p className="text-muted mt-3">Loading dashboard...</p>
+      </div>
+    );
+
+  if (error)
+    return (
+      <Container className="py-5">
+        <Alert variant="danger">{error}</Alert>
+      </Container>
+    );
+
+  // ------------------------------
+  // MAIN DASHBOARD UI
+  // ------------------------------
   return (
     <Container fluid className="py-4 bg-light min-vh-100">
       {/* Header */}
       <Animated>
         <div className="text-center mb-5">
-          <h2 className="fw-bold text-teal">📋 Registrar Control Center</h2>
+          <h2 className="fw-bold text-primary">📋 Registrar Control Center</h2>
           <p className="text-muted mb-1">
             Coordinate case assignments, schedule hearings, manage user access,
             and oversee system operations.
           </p>
           <Badge bg="info" className="p-2 mt-2">
-            Administrative Access • Registrar
+            Administrative Access • {user?.role || "Registrar"}
           </Badge>
         </div>
       </Animated>
@@ -47,25 +147,25 @@ export default function RegistrarDashboard() {
           {[
             {
               title: "Total Cases",
-              value: 128,
+              value: stats.totalCases,
               color: "primary",
-              progress: 80,
+              progress: Math.min(stats.totalCases / 2, 100),
             },
             {
               title: "Pending Hearings",
-              value: 12,
+              value: stats.pendingHearings,
               color: "warning",
-              progress: 45,
+              progress: Math.min(stats.pendingHearings * 10, 100),
             },
             {
               title: "Active Users",
-              value: 54,
+              value: stats.activeUsers,
               color: "success",
-              progress: 75,
+              progress: Math.min(stats.activeUsers * 5, 100),
             },
             {
               title: "Reports Generated",
-              value: 23,
+              value: stats.reports,
               color: "info",
               progress: 60,
             },
@@ -97,47 +197,51 @@ export default function RegistrarDashboard() {
             {/* Case Assignment Section */}
             <Card className="shadow border-0 mb-4">
               <Card.Header className="bg-primary text-white fw-bold">
-                📂 Case Assignments
+                📂 Recent Case Assignments
               </Card.Header>
               <Card.Body>
-                <Table responsive hover size="sm" bordered>
-                  <thead className="table-light">
-                    <tr>
-                      <th>#</th>
-                      <th>Case Title</th>
-                      <th>Assigned To</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>1</td>
-                      <td>State vs Kuda M.</td>
-                      <td>Judge: T. Ndlovu</td>
-                      <td>
-                        <Badge bg="success">Active</Badge>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>2</td>
-                      <td>People vs Chirwa</td>
-                      <td>Prosecutor: A. Banda</td>
-                      <td>
-                        <Badge bg="warning" text="dark">
-                          Pending
-                        </Badge>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>3</td>
-                      <td>State vs Dube</td>
-                      <td>Judge: P. Moyo</td>
-                      <td>
-                        <Badge bg="info">Scheduled</Badge>
-                      </td>
-                    </tr>
-                  </tbody>
-                </Table>
+                {recentCases.length === 0 ? (
+                  <p className="text-muted text-center mb-0">
+                    No cases registered yet.
+                  </p>
+                ) : (
+                  <Table responsive hover size="sm" bordered>
+                    <thead className="table-light">
+                      <tr>
+                        <th>#</th>
+                        <th>Case Title</th>
+                        <th>Status</th>
+                        <th>Date Filed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentCases.map((c, i) => (
+                        <tr key={c.id}>
+                          <td>{i + 1}</td>
+                          <td>{c.title}</td>
+                          <td>
+                            <Badge
+                              bg={
+                                c.status?.toLowerCase() === "active"
+                                  ? "success"
+                                  : c.status?.toLowerCase() === "closed"
+                                  ? "secondary"
+                                  : "warning"
+                              }
+                            >
+                              {c.status || "Unknown"}
+                            </Badge>
+                          </td>
+                          <td>
+                            {c.date_filed
+                              ? new Date(c.date_filed).toLocaleDateString()
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                )}
 
                 <div className="text-end">
                   <Button

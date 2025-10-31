@@ -1,5 +1,4 @@
-// src/pages/prosecutor/Dashboard.js
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Container,
   Row,
@@ -9,11 +8,28 @@ import {
   Badge,
   Table,
   ProgressBar,
+  Spinner,
+  Alert,
 } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
+import api from "../../api";
+import { useAuth } from "../../auth/AuthContext";
 
 export default function ProsecutorDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Dashboard statistics and state
+  const [stats, setStats] = useState({
+    activeCases: 0,
+    pendingEvidence: 0,
+    upcomingHearings: 0,
+    filedSubmissions: 0,
+  });
+
+  const [recentCases, setRecentCases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const Animated = ({ children, delay = 0 }) => (
     <div
@@ -24,14 +40,119 @@ export default function ProsecutorDashboard() {
     </div>
   );
 
+  // ------------------------------------------------------------
+  // Fetch all data for dashboard (cases, hearings, evidence, docs)
+  // ------------------------------------------------------------
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        // 1️⃣ Fetch all cases
+        const caseRes = await api.get("/cases/");
+        const allCases = caseRes.data || [];
+
+        // Optionally filter to prosecutor’s assigned cases
+        const prosecutorEmail = user?.email || "";
+        const myCases = allCases.filter(
+          (c) => c.assigned_to === prosecutorEmail || c.status !== "Closed"
+        );
+
+        // 2️⃣ Fetch all hearings
+        let hearings = [];
+        try {
+          const hearingRes = await api.get("/hearings/");
+          hearings = hearingRes.data || [];
+        } catch {
+          hearings = [];
+        }
+
+        // 3️⃣ Fetch all documents per case (since `/documents/` root doesn’t exist)
+        let documents = [];
+        try {
+          const docPromises = myCases.map((c) =>
+            api
+              .get(`/documents/${c.id}`)
+              .then((res) => res.data)
+              .catch(() => [])
+          );
+          const docArrays = await Promise.all(docPromises);
+          documents = docArrays.flat();
+        } catch (err) {
+          console.warn("⚠️ Document fetch failed:", err.message);
+        }
+
+        // 4️⃣ Fetch all evidence per case (since `/evidence/` root doesn’t exist)
+        let evidences = [];
+        try {
+          const evidencePromises = myCases.map((c) =>
+            api
+              .get(`/evidence/${c.id}`)
+              .then((res) => res.data)
+              .catch(() => [])
+          );
+          const evidenceArrays = await Promise.all(evidencePromises);
+          evidences = evidenceArrays.flat();
+        } catch (err) {
+          console.warn("⚠️ Evidence fetch failed:", err.message);
+        }
+
+        // 5️⃣ Derive statistics
+        const activeCases = myCases.filter(
+          (c) => c.status?.toLowerCase() === "ongoing"
+        ).length;
+
+        const pendingEvidence = evidences.filter(
+          (e) => e.status?.toLowerCase() === "pending"
+        ).length;
+
+        const upcomingHearings = hearings.length;
+        const filedSubmissions = documents.length;
+
+        // Apply to state
+        setStats({
+          activeCases,
+          pendingEvidence,
+          upcomingHearings,
+          filedSubmissions,
+        });
+
+        // Limit recent cases for table
+        setRecentCases(myCases.slice(0, 5));
+      } catch (err) {
+        console.error("❌ Dashboard fetch failed:", err);
+        setError("Unable to load prosecutor dashboard data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [user]);
+
+  // ------------------------------------------------------------
+  // Loading / Error UI
+  // ------------------------------------------------------------
+  if (loading)
+    return (
+      <div className="text-center mt-5">
+        <Spinner animation="border" />
+        <p className="text-muted mt-2">Loading prosecutor dashboard...</p>
+      </div>
+    );
+
+  if (error) return <Alert variant="danger">{error}</Alert>;
+
+  // ------------------------------------------------------------
+  // RENDER UI
+  // ------------------------------------------------------------
   return (
     <Container fluid className="py-4 bg-white min-vh-100">
       {/* Header */}
       <Animated>
         <div className="text-center mb-5">
-          <h2 className="fw-bold text-danger">
-            ⚖️ Prosecutor Operations Panel
-          </h2>
+          <h2 className="fw-bold text-danger">⚖️ Prosecutor Operations Panel</h2>
           <p className="text-muted mb-1">
             Manage active prosecutions, monitor case progress, analyze evidence,
             and coordinate with the judiciary efficiently.
@@ -48,27 +169,27 @@ export default function ProsecutorDashboard() {
           {[
             {
               title: "Active Cases",
-              value: 22,
+              value: stats.activeCases,
               color: "primary",
-              progress: 65,
+              progress: stats.activeCases ? 70 : 10,
             },
             {
               title: "Pending Evidence",
-              value: 7,
+              value: stats.pendingEvidence,
               color: "danger",
-              progress: 45,
+              progress: stats.pendingEvidence ? 45 : 5,
             },
             {
               title: "Upcoming Hearings",
-              value: 11,
+              value: stats.upcomingHearings,
               color: "warning",
-              progress: 70,
+              progress: stats.upcomingHearings ? 65 : 10,
             },
             {
               title: "Filed Submissions",
-              value: 15,
+              value: stats.filedSubmissions,
               color: "success",
-              progress: 85,
+              progress: stats.filedSubmissions ? 80 : 10,
             },
           ].map((item, i) => (
             <Col key={i} md={3} sm={6}>
@@ -101,45 +222,44 @@ export default function ProsecutorDashboard() {
                 📂 Active Case Files
               </Card.Header>
               <Card.Body>
-                <Table responsive bordered hover size="sm">
-                  <thead className="table-light">
-                    <tr>
-                      <th>#</th>
-                      <th>Case Title</th>
-                      <th>Status</th>
-                      <th>Next Hearing</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>1</td>
-                      <td>State vs Mokoena</td>
-                      <td>
-                        <Badge bg="warning" text="dark">
-                          Under Review
-                        </Badge>
-                      </td>
-                      <td>10 Oct 2025</td>
-                    </tr>
-                    <tr>
-                      <td>2</td>
-                      <td>People vs Dube</td>
-                      <td>
-                        <Badge bg="success">Active</Badge>
-                      </td>
-                      <td>13 Oct 2025</td>
-                    </tr>
-                    <tr>
-                      <td>3</td>
-                      <td>Republic vs Chisale</td>
-                      <td>
-                        <Badge bg="danger">Pending Evidence</Badge>
-                      </td>
-                      <td>17 Oct 2025</td>
-                    </tr>
-                  </tbody>
-                </Table>
-
+                {recentCases.length === 0 ? (
+                  <Alert variant="light">No cases found.</Alert>
+                ) : (
+                  <Table responsive bordered hover size="sm">
+                    <thead className="table-light">
+                      <tr>
+                        <th>#</th>
+                        <th>Case Title</th>
+                        <th>Status</th>
+                        <th>Filed By</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentCases.map((c, i) => (
+                        <tr key={c.id}>
+                          <td>{i + 1}</td>
+                          <td>{c.title}</td>
+                          <td>
+                            <Badge
+                              bg={
+                                c.status?.toLowerCase() === "ongoing"
+                                  ? "success"
+                                  : c.status?.toLowerCase() === "review"
+                                  ? "warning"
+                                  : c.status?.toLowerCase() === "closed"
+                                  ? "secondary"
+                                  : "info"
+                              }
+                            >
+                              {c.status}
+                            </Badge>
+                          </td>
+                          <td>{c.created_by || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                )}
                 <div className="text-end">
                   <Button
                     variant="primary"

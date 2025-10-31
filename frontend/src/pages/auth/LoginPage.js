@@ -215,6 +215,20 @@ export default function LoginPage() {
                     ← Back to Home
                   </Button>
                 </div>
+
+                {/* Registration Link */}
+                <div className="text-center mt-3">
+                  <p className="text-muted small mb-0">
+                    Don't have an account?{' '}
+                    <Button
+                      variant="link"
+                      className="text-decoration-none text-primary p-0"
+                      onClick={() => navigate("/register")}
+                    >
+                      Sign up here
+                    </Button>
+                  </p>
+                </div>
               </Card.Body>
             </Card>
 

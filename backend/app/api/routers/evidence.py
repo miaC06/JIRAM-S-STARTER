@@ -41,10 +41,10 @@ def get_db():
 class EvidenceResponse(BaseModel):
     id: int
     filename: str
-    file_type: str
+    filetype: str
     case_title: Optional[str]
     uploader_email: str
-    upload_date: str
+    uploaded_at: str
     category: Optional[str]
     status: str
     remarks: Optional[str]
@@ -92,7 +92,7 @@ async def upload_evidence(
         uploader_id=user.id,
         filename=file.filename,
         file_path=file_path,
-        file_type=file.content_type,
+        filetype=file.content_type,
         category=category,
         status="PENDING",
     )
@@ -104,10 +104,10 @@ async def upload_evidence(
     return {
         "id": new_evidence.id,
         "filename": new_evidence.filename,
-        "file_type": new_evidence.file_type,
+        "filetype": new_evidence.filetype,
         "case_title": case.title,
         "uploader_email": user.email,
-        "upload_date": new_evidence.upload_date.isoformat(),
+        "uploaded_at": new_evidence.uploaded_at.isoformat(),
         "category": new_evidence.category,
         "status": new_evidence.status,
         "remarks": new_evidence.remarks,
