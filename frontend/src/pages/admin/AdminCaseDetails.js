@@ -14,7 +14,9 @@ import {
   Send,
   CheckCircle,
   AlertCircle,
-  Clock
+  Clock,
+  Download,
+  Eye
 } from 'lucide-react';
 
 export default function AdminCaseDetails() {
@@ -97,6 +99,19 @@ export default function AdminCaseDetails() {
       setError(err.response?.data?.detail || 'Failed to add feedback');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleViewEvidence = (evidenceId) => {
+    const url = `http://127.0.0.1:8000/evidence/download/${evidenceId}`;
+    console.log('🔍 Opening evidence URL:', url);
+    console.log('Evidence ID:', evidenceId);
+    
+    // Try to open in new tab
+    const newWindow = window.open(url, '_blank');
+    
+    if (!newWindow) {
+      alert('⚠️ Pop-up blocked! Please allow pop-ups for this site.\n\nAlternatively, right-click the "View Evidence" button and select "Open in new tab".');
     }
   };
 
@@ -247,6 +262,23 @@ export default function AdminCaseDetails() {
                           <p className="text-xs text-gray-500">
                             Uploaded: {new Date(evidence.uploaded_at).toLocaleDateString()}
                           </p>
+                          <div className="flex items-center space-x-2 mt-2">
+                            <button
+                              onClick={() => handleViewEvidence(evidence.id)}
+                              className="inline-flex items-center space-x-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>View</span>
+                            </button>
+                            <a
+                              href={`http://127.0.0.1:8000/evidence/download/${evidence.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-gray-500 hover:text-gray-700 underline"
+                            >
+                              Link
+                            </a>
+                          </div>
                         </div>
                       </div>
                     </div>

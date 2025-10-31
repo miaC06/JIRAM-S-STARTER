@@ -38,7 +38,7 @@ export default function CaseAssignments() {
         setLoading(true);
 
         // Fetch cases
-        const caseRes = await API.api.get("/cases/");
+        const caseRes = await API.api.get("/cases/admin/all");
         setCases(caseRes.data || []);
 
         // Fetch judges & prosecutors
@@ -73,11 +73,10 @@ export default function CaseAssignments() {
       setError("");
       setSuccess("");
 
-      // Build payload
-      const payload =
-        assignmentType === "Judge"
-          ? { judge_id: selectedAssignee }
-          : { prosecutor_id: selectedAssignee };
+      // Build payload - backend expects assigned_to_id
+      const payload = {
+        assigned_to_id: parseInt(selectedAssignee)
+      };
 
       // PUT /cases/{id}
       await API.api.put(`/cases/${selectedCase}`, payload);
@@ -85,6 +84,10 @@ export default function CaseAssignments() {
       setSuccess(`✅ Case successfully assigned to ${assignmentType}.`);
       setSelectedCase("");
       setSelectedAssignee("");
+      
+      // Refresh case list to show updated assignment
+      const caseRes = await API.api.get("/cases/admin/all");
+      setCases(caseRes.data || []);
     } catch (err) {
       console.error("❌ Assignment failed:", err.response?.data || err);
       setError("Failed to assign case. Please check console for details.");

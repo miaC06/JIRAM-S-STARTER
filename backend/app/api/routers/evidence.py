@@ -7,6 +7,7 @@ from fastapi import (
     File,
     Form,
 )
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -127,10 +128,10 @@ def list_all_evidence(db: Session = Depends(get_db)):
         {
             "id": e.id,
             "filename": e.filename,
-            "file_type": e.file_type,
+            "filetype": e.filetype,
             "case_title": e.case.title if e.case else None,
             "uploader_email": e.uploader.email if e.uploader else None,
-            "upload_date": e.upload_date.isoformat(),
+            "uploaded_at": e.uploaded_at.isoformat(),
             "category": e.category,
             "status": e.status,
             "remarks": e.remarks,
@@ -152,10 +153,10 @@ def get_case_evidence(case_id: int, db: Session = Depends(get_db)):
         {
             "id": e.id,
             "filename": e.filename,
-            "file_type": e.file_type,
+            "filetype": e.filetype,
             "case_title": e.case.title if e.case else None,
             "uploader_email": e.uploader.email if e.uploader else None,
-            "upload_date": e.upload_date.isoformat(),
+            "uploaded_at": e.uploaded_at.isoformat(),
             "category": e.category,
             "status": e.status,
             "remarks": e.remarks,
@@ -178,10 +179,10 @@ def get_user_evidence(email: str, db: Session = Depends(get_db)):
         {
             "id": e.id,
             "filename": e.filename,
-            "file_type": e.file_type,
+            "filetype": e.filetype,
             "case_title": e.case.title if e.case else None,
             "uploader_email": user.email,
-            "upload_date": e.upload_date.isoformat(),
+            "uploaded_at": e.uploaded_at.isoformat(),
             "category": e.category,
             "status": e.status,
             "remarks": e.remarks,
@@ -214,10 +215,10 @@ def review_evidence(
     return {
         "id": ev.id,
         "filename": ev.filename,
-        "file_type": ev.file_type,
+        "filetype": ev.filetype,
         "case_title": ev.case.title if ev.case else None,
         "uploader_email": ev.uploader.email if ev.uploader else None,
-        "upload_date": ev.upload_date.isoformat(),
+        "uploaded_at": ev.uploaded_at.isoformat(),
         "category": ev.category,
         "status": ev.status,
         "remarks": ev.remarks,
@@ -242,3 +243,27 @@ def delete_evidence(evidence_id: int, db: Session = Depends(get_db)):
     db.delete(ev)
     db.commit()
     return {"message": "Evidence deleted successfully"}
+
+
+# -------------------------------------------------------
+# Download/View Evidence File
+# -------------------------------------------------------
+@router.get("/download/{evidence_id}")
+def download_evidence(evidence_id: int, db: Session = Depends(get_db)):
+    """
+    Download or view an evidence file.
+    Returns the actual file for viewing/downloading.
+    """
+    ev = db.query(Evidence).filter(Evidence.id == evidence_id).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    
+    if not os.path.exists(ev.file_path):
+        raise HTTPException(status_code=404, detail="Evidence file not found on server")
+    
+    # Return the file with proper headers
+    return FileResponse(
+        path=ev.file_path,
+        filename=ev.filename,
+        media_type=ev.filetype or "application/octet-stream"
+    )

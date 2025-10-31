@@ -12,7 +12,7 @@ import {
   Form,
   Card,
 } from "react-bootstrap";
-import api from "../../api";
+import API from "../../config/api";
 
 export default function Hearings() {
   // ------------------------------
@@ -42,7 +42,7 @@ export default function Hearings() {
     const fetchHearings = async () => {
       try {
         setLoading(true);
-        const res = await api.get("/hearings/");
+        const res = await API.api.get("/hearings/");
         setHearings(res.data || []);
       } catch (err) {
         console.error("❌ Failed to fetch hearings:", err);
@@ -126,7 +126,7 @@ export default function Hearings() {
         judge_id: formData.judge_id ? Number(formData.judge_id) : null,
       };
 
-      const res = await api.post("/hearings/", payload);
+      const res = await API.api.post("/hearings/", payload);
       setHearings((prev) => [...prev, res.data]);
 
       alert("✅ Hearing scheduled successfully!");
@@ -155,7 +155,7 @@ export default function Hearings() {
         status: "RESCHEDULED",
       };
 
-      const res = await api.put(`/hearings/${selectedHearing.id}`, payload);
+      const res = await API.api.put(`/hearings/${selectedHearing.id}`, payload);
       setHearings((prev) =>
         prev.map((h) =>
           h.id === selectedHearing.id ? { ...h, ...res.data } : h
@@ -179,7 +179,7 @@ export default function Hearings() {
     if (!window.confirm("Are you sure you want to cancel this hearing?")) return;
 
     try {
-      await api.put(`/hearings/${hearingId}`, { status: "CANCELLED" });
+      await API.api.put(`/hearings/${hearingId}`, { status: "CANCELLED" });
       setHearings((prev) =>
         prev.map((h) =>
           h.id === hearingId ? { ...h, status: "CANCELLED" } : h
@@ -199,7 +199,7 @@ export default function Hearings() {
     if (!window.confirm("Permanently delete this hearing?")) return;
 
     try {
-      await api.delete(`/hearings/${hearingId}`);
+      await API.api.delete(`/hearings/${hearingId}`);
       setHearings((prev) => prev.filter((h) => h.id !== hearingId));
       alert("🗑️ Hearing deleted successfully.");
     } catch (err) {

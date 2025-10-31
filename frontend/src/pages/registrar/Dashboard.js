@@ -49,9 +49,9 @@ export default function RegistrarDashboard() {
 
         // Parallel fetch for performance
         const [casesRes, hearingsRes, usersRes] = await Promise.all([
-          API.api.get("/cases/"),
+          API.api.get("/cases/admin/all"),
           API.api.get("/hearings/"),
-          API.api.get("/users/"),
+          API.api.get(`/users/all?registrar_email=${user.email}`),
         ]);
 
         const allCases = casesRes.data || [];

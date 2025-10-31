@@ -8,7 +8,7 @@ import {
   Form,
   Badge,
 } from "react-bootstrap";
-import api from "../../api";
+import API from "../../config/api";
 
 export default function EvidenceReview() {
   const [cases, setCases] = useState([]);
@@ -24,7 +24,7 @@ export default function EvidenceReview() {
   useEffect(() => {
     const fetchCases = async () => {
       try {
-        const res = await api.get("/cases/");
+        const res = await API.api.get("/cases/admin/all");
         setCases(res.data || []);
       } catch (err) {
         console.error("❌ Failed to fetch cases:", err);
@@ -44,7 +44,7 @@ export default function EvidenceReview() {
       setError("");
       setSuccess("");
 
-      const res = await api.get(`/evidence/${caseId}`);
+      const res = await API.api.get(`/evidence/case/${caseId}`);
       console.log("📁 Evidence fetched:", res.data);
       setEvidenceList(res.data || []);
     } catch (err) {
@@ -59,13 +59,15 @@ export default function EvidenceReview() {
   // ----------------------------------------
   // Handle file viewing
   // ----------------------------------------
-  const handleView = (filePath) => {
-    if (!filePath) {
-      alert("No file path available for this evidence.");
+  const handleView = (evidenceId) => {
+    if (!evidenceId) {
+      alert("No evidence ID available.");
       return;
     }
-    // Use the backend URL for local file access
-    window.open(`http://127.0.0.1:8000/${filePath}`, "_blank");
+    // Open evidence file using download endpoint
+    const url = `http://127.0.0.1:8000/evidence/download/${evidenceId}`;
+    console.log("🔍 Opening evidence URL:", url);
+    window.open(url, "_blank");
   };
 
   // ----------------------------------------
@@ -80,7 +82,7 @@ export default function EvidenceReview() {
       const formData = new FormData();
       formData.append("status", status);
 
-      const res = await api.put(`/evidence/${evidenceId}/review`, formData);
+      const res = await API.api.put(`/evidence/${evidenceId}/review`, { status });
       console.log("✅ Review response:", res.data);
 
       setSuccess(`Evidence ${status.toLowerCase()} successfully.`);
@@ -144,15 +146,15 @@ export default function EvidenceReview() {
                 <strong>{ev.filename}</strong>{" "}
                 <Badge
                   bg={
-                    ev.review_status === "APPROVED"
+                    ev.status === "APPROVED"
                       ? "success"
-                      : ev.review_status === "REJECTED"
+                      : ev.status === "REJECTED"
                       ? "danger"
                       : "secondary"
                   }
                   className="ms-2"
                 >
-                  {ev.review_status || "PENDING"}
+                  {ev.status || "PENDING"}
                 </Badge>
                 <div className="text-muted small">
                   Uploaded: {new Date(ev.uploaded_at).toLocaleString()}
@@ -162,7 +164,7 @@ export default function EvidenceReview() {
                 <Button
                   variant="outline-primary"
                   size="sm"
-                  onClick={() => handleView(ev.filepath)}
+                  onClick={() => handleView(ev.id)}
                 >
                   View
                 </Button>

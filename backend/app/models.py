@@ -23,6 +23,7 @@ class User(Base):
     email = Column(String(20), unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     role = Column(String(50), nullable=False)  # CIVILIAN, PROSECUTOR, JUDGE, REGISTRAR
+    is_active = Column(Integer, default=1, nullable=False)  # 1 = active, 0 = disabled
 
     # Relationships
     filed_cases = relationship(

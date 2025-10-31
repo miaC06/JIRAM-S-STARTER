@@ -14,6 +14,8 @@ import Payments from "../pages/registrar/Payments";
 import Reports from "../pages/registrar/Reports";
 import Schedule from "../pages/registrar/Schedule";
 import UserAccounts from "../pages/registrar/UserAccounts";
+import UserManagement from "../pages/registrar/UserManagement";
+import ReportsGeneration from "../pages/registrar/ReportsGeneration";
 
 export default function RegistrarRoutes() {
   return (
@@ -26,9 +28,9 @@ export default function RegistrarRoutes() {
       <Route path="documents" element={<Documents />} />
       <Route path="hearings" element={<HearingManagement />} />
       <Route path="payments" element={<Payments />} />
-      <Route path="reports" element={<Reports />} />
+      <Route path="reports" element={<ReportsGeneration />} />
       <Route path="schedule" element={<Schedule />} />
-      <Route path="users" element={<UserAccounts />} />
+      <Route path="users" element={<UserManagement />} />
       <Route path="settings" element={<div className="p-6 text-center">Settings page coming soon</div>} />
     </Routes>
   );

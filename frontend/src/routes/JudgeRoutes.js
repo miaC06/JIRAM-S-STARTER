@@ -4,7 +4,7 @@ import { Routes, Route } from "react-router-dom";
 // New admin components
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminCaseList from "../pages/admin/AdminCaseList";
-import AdminCaseDetails from "../pages/admin/AdminCaseDetails";
+import JudgeCaseDetails from "../pages/judge/JudgeCaseDetails";
 
 // Old judge pages (fallback)
 import EvidenceReview from "../pages/judge/EvidenceReview";
@@ -20,7 +20,7 @@ export default function JudgeRoutes() {
 
       {/* Cases */}
       <Route path="cases" element={<AdminCaseList />} />
-      <Route path="cases/:id" element={<AdminCaseDetails />} />
+      <Route path="cases/:id" element={<JudgeCaseDetails />} />
 
       {/* Evidence */}
       <Route path="evidence" element={<EvidenceReview />} />
